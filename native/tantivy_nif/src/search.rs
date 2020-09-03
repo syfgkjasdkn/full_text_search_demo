@@ -1,9 +1,10 @@
 extern crate tantivy;
 
-use tantivy::collector::TopCollector;
+use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::{Index, IndexWriter};
+use tantivy::ReloadPolicy;
 
 pub struct Searcher {
     schema: Schema,
@@ -36,13 +37,17 @@ impl Searcher {
         ));
 
         self.index_writer.commit()?;
-        self.index.load_searchers()?;
 
         Ok(())
     }
 
     pub fn search(&self, query: String) -> tantivy::Result<Vec<Document>> {
-        let searcher = self.index.searcher();
+        let reader = self.index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::OnCommit)
+            .try_into()?;
+
+        let searcher = reader.searcher();
 
         let query_parser = QueryParser::for_index(
             &self.index,
@@ -53,14 +58,13 @@ impl Searcher {
         );
 
         let query = query_parser.parse_query(&query)?;
-        let mut top_collector = TopCollector::with_limit(10);
+        let mut top_collector = TopDocs::with_limit(10);
 
-        searcher.search(&*query, &mut top_collector)?;
+        let top_docs = searcher.search(&*query, &mut top_collector)?;
 
-        let docs = top_collector
-            .docs()
+        let docs = top_docs
             .iter()
-            .map(|doc_address| searcher.doc(&doc_address).unwrap())
+            .map(|(_score, doc_address)| searcher.doc(*doc_address).unwrap())
             .collect();
 
         Ok(docs)

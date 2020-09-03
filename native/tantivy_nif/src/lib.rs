@@ -2,8 +2,6 @@
 extern crate tantivy;
 #[macro_use]
 extern crate rustler;
-#[macro_use]
-extern crate lazy_static;
 
 use rustler::resource::ResourceArc;
 use rustler::{Encoder, Env, Error, NifResult, Term};
@@ -38,7 +36,7 @@ fn init<'a>(env: Env<'a>, _args: &[Term<'a>]) -> NifResult<Term<'a>> {
 
 fn search<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
     let resource: ResourceArc<SearcherResource> = args[0].decode()?;
-    let query: String = try!(args[1].decode());
+    let query: String = args[1].decode()?;
 
     let searcher = match resource.0.try_lock() {
         Ok(guard) => guard,
@@ -56,8 +54,8 @@ fn search<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
 
 fn add_entry<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
     let resource: ResourceArc<SearcherResource> = args[0].decode()?;
-    let title: String = try!(args[1].decode());
-    let body: String = try!(args[2].decode());
+    let title: String = args[1].decode()?;
+    let body: String = args[2].decode()?;
 
     let mut searcher = match resource.0.try_lock() {
         Ok(guard) => guard,
@@ -78,8 +76,10 @@ fn doc_to_term<'a>(env: Env<'a>, doc: tantivy::Document) -> Term<'a> {
             tantivy::schema::Value::Str(v) => v.encode(env),
             tantivy::schema::Value::U64(v) => v.encode(env),
             tantivy::schema::Value::I64(v) => v.encode(env),
-            tantivy::schema::Value::Facet(v) => v.encoded_bytes().encode(env),
+            tantivy::schema::Value::F64(v) => v.encode(env),
             tantivy::schema::Value::Bytes(v) => v.encode(env),
+            _ => atoms::error().encode(env),
+
         }).collect();
     terms.encode(env)
 }
